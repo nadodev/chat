@@ -3,12 +3,14 @@ import {io} from "../http";
 import { CreateChatRomService } from "../services/CreateChatRomService";
 import { CreateUserService } from "../services/CreateUserService";
 import { GetAllUserServices } from "../services/GetAllUserServices";
+import { GetChatRoomByUsersService } from "../services/GetChatRoomByUsersService";
 import { GetUserBySocketIdService } from "../services/GetUserBySocketIdService";
 
 io.on("connect", socket =>{
   socket.on("start", async data =>{
       const {email, avatar, name} = data;
       const createUserService = container.resolve(CreateUserService)
+  
 
      const user = await createUserService.execute({
         email, avatar, name, socket_id: socket.id,
@@ -25,12 +27,25 @@ io.on("connect", socket =>{
   })
   socket.on("start_chat", async(data, callback) => {
       const createChatRoomService = container.resolve(CreateChatRomService);
+      const getChatRoomByUsersService = container.resolve(GetChatRoomByUsersService)
       const getUserBySocketIdService = container.resolve(
         GetUserBySocketIdService
         );
         const userLogged = await getUserBySocketIdService.execute(socket.id);
-       const room = await createChatRoomService.execute([data.idUser, userLogged._id]);
 
-       callback(room);
+        let room = await getChatRoomByUsersService.execute([
+          data.idUser, 
+          userLogged._id
+         ]);
+
+         if(!room){
+          room = await createChatRoomService.execute([
+            data.idUser, 
+            userLogged._id
+           ]);
+         }
+    
+
+       callback({room});
   })
 });
