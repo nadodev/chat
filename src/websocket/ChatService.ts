@@ -1,9 +1,11 @@
 import { container } from "tsyringe";
 import {io} from "../http";
 import { CreateChatRomService } from "../services/CreateChatRomService";
+import { CreateMessageService } from "../services/CreateMessageService";
 import { CreateUserService } from "../services/CreateUserService";
 import { GetAllUserServices } from "../services/GetAllUserServices";
 import { GetChatRoomByUsersService } from "../services/GetChatRoomByUsersService";
+import { GetMessagesByChatRoomService } from "../services/GetMessagesByChatRoomService";
 import { GetUserBySocketIdService } from "../services/GetUserBySocketIdService";
 
 io.on("connect", socket =>{
@@ -31,11 +33,13 @@ io.on("connect", socket =>{
       const getUserBySocketIdService = container.resolve(
         GetUserBySocketIdService
         );
+
+        const getMessagesByChatRoomService = container.resolve(GetMessagesByChatRoomService);
         const userLogged = await getUserBySocketIdService.execute(socket.id);
 
         let room = await getChatRoomByUsersService.execute([
           data.idUser, 
-          userLogged._id
+          userLogged._id,
          ]);
 
          if(!room){
@@ -44,8 +48,25 @@ io.on("connect", socket =>{
             userLogged._id
            ]);
          }
-    
+         socket.join(room.idChatRoom);
 
-       callback({room});
-  })
+         //buscar messsagem
+         const messages = await getMessagesByChatRoomService.execute(room.idChatRoom)
+       callback({room, messages});
+  });
+
+  socket.on("message", async data => {
+    const getUserBySocketIdService = container.resolve(GetUserBySocketIdService);
+    const createMessageService = container.resolve(CreateMessageService)
+    const user = await getUserBySocketIdService.execute(socket.id)
+    const message = await createMessageService.execute({
+      to: user._id,
+      text: data.message,
+      roomId: data.idChatRoom,
+    });
+    io.to(data.idChatRoom).emit("message",{
+      message,
+      user,
+    });
+  });
 });
